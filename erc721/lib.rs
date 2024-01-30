@@ -54,12 +54,10 @@
 
 #[ink::contract]
 mod erc721 {
+    use ink::prelude::vec::Vec;
     use ink::storage::Mapping;
 
-    use scale::{
-        Decode,
-        Encode,
-    };
+    use scale::{Decode, Encode};
 
     /// A token ID.
     pub type TokenId = u32;
@@ -222,7 +220,7 @@ mod erc721 {
 
             let owner = token_owner.get(id).ok_or(Error::TokenNotFound)?;
             if owner != caller {
-                return Err(Error::NotOwner)
+                return Err(Error::NotOwner);
             };
 
             let count = owned_tokens_count
@@ -241,6 +239,35 @@ mod erc721 {
             Ok(())
         }
 
+        /// Batch mints new tokens.
+        #[ink(message)]
+        pub fn batch_mint(&mut self, ids: Vec<TokenId>) -> Result<(), Error> {
+            let caller = self.env().caller();
+            for id in ids {
+                self.add_token_to(&caller, id)?;
+                self.env().emit_event(Transfer {
+                    from: Some(AccountId::from([0x0; 32])),
+                    to: Some(caller),
+                    id,
+                });
+            }
+            Ok(())
+        }
+
+        /// Batch transfers tokens from the caller to the given destination.
+        #[ink(message)]
+        pub fn batch_transfer(
+            &mut self,
+            destination: AccountId,
+            ids: Vec<TokenId>,
+        ) -> Result<(), Error> {
+            let caller = self.env().caller();
+            for id in ids {
+                self.transfer_token_from(&caller, &destination, id)?;
+            }
+            Ok(())
+        }
+
         /// Transfers token `id` `from` the sender to the `to` `AccountId`.
         fn transfer_token_from(
             &mut self,
@@ -250,10 +277,10 @@ mod erc721 {
         ) -> Result<(), Error> {
             let caller = self.env().caller();
             if !self.exists(id) {
-                return Err(Error::TokenNotFound)
+                return Err(Error::TokenNotFound);
             };
             if !self.approved_or_owner(Some(caller), id) {
-                return Err(Error::NotApproved)
+                return Err(Error::NotApproved);
             };
             self.clear_approval(id);
             self.remove_token_from(from, id)?;
@@ -279,7 +306,7 @@ mod erc721 {
             } = self;
 
             if !token_owner.contains(id) {
-                return Err(Error::TokenNotFound)
+                return Err(Error::TokenNotFound);
             }
 
             let count = owned_tokens_count
@@ -301,11 +328,11 @@ mod erc721 {
             } = self;
 
             if token_owner.contains(id) {
-                return Err(Error::TokenExists)
+                return Err(Error::TokenExists);
             }
 
             if *to == AccountId::from([0x0; 32]) {
-                return Err(Error::NotAllowed)
+                return Err(Error::NotAllowed);
             };
 
             let count = owned_tokens_count.get(to).map(|c| c + 1).unwrap_or(1);
@@ -324,7 +351,7 @@ mod erc721 {
         ) -> Result<(), Error> {
             let caller = self.env().caller();
             if to == caller {
-                return Err(Error::NotAllowed)
+                return Err(Error::NotAllowed);
             }
             self.env().emit_event(ApprovalForAll {
                 owner: caller,
@@ -349,15 +376,15 @@ mod erc721 {
             if !(owner == Some(caller)
                 || self.approved_for_all(owner.expect("Error with AccountId"), caller))
             {
-                return Err(Error::NotAllowed)
+                return Err(Error::NotAllowed);
             };
 
             if *to == AccountId::from([0x0; 32]) {
-                return Err(Error::NotAllowed)
+                return Err(Error::NotAllowed);
             };
 
             if self.token_approvals.contains(id) {
-                return Err(Error::CannotInsert)
+                return Err(Error::CannotInsert);
             } else {
                 self.token_approvals.insert(id, to);
             }
